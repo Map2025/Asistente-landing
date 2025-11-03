@@ -2,6 +2,7 @@ import streamlit as st
 import os
 import csv
 from datetime import datetime
+from supabase import create_client, Client
 
 # -------------------
 # CONFIGURACIÓN
@@ -10,7 +11,46 @@ st.set_page_config(page_title="Generador de Landing Page", layout="wide")
 st.title("🌐 Generador de Landing Page Profesional")
 
 # -------------------
-# PANEL LATERAL
+# CONEXIÓN A SUPABASE
+# -------------------
+SUPABASE_URL = st.secrets["supabase"]["SUPABASE_URL"]
+SUPABASE_KEY = st.secrets["supabase"]["SUPABASE_KEY"]
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# -------------------
+# LOGIN SIMPLE POR EMAIL
+# -------------------
+st.sidebar.header("👤 Autenticación de usuario")
+email = st.sidebar.text_input("Ingresá tu correo electrónico para usar el asistente")
+
+def obtener_usuario(email):
+    if not email:
+        return None
+    user_resp = supabase.table("Usuarios").select("*").eq("email", email).execute()
+    return user_resp.data[0] if user_resp.data else None
+
+user = obtener_usuario(email)
+
+if not email:
+    st.warning("✉️ Ingresa tu correo en la barra lateral para comenzar.")
+    st.stop()
+
+# Si el usuario no existe, lo crea automáticamente
+if not user:
+    supabase.table("Usuarios").insert({
+        "email": email,
+        "landing": 0,
+        "ultimo_acceso": datetime.now().isoformat()
+    }).execute()
+    user = obtener_usuario(email)
+
+# Si ya tiene 5 landings, bloqueo
+if user["landing"] >= 5:
+    st.error("🚫 Has alcanzado el límite máximo de 5 landings.")
+    st.stop()
+
+# -------------------
+# CONFIGURACIÓN GENERAL
 # -------------------
 st.sidebar.header("⚙️ Configuración General")
 
@@ -21,16 +61,13 @@ color_fondo = st.sidebar.color_picker("Color de fondo", "#f9f9f9")
 url_app_web = st.sidebar.text_input("🌐 URL de tu App Web", "https://miappweb.com")
 correo_destino = st.sidebar.text_input("Correo de contacto HTML (para mailto:)", "tuemail@dominio.com")
 
-# -------------------
-# Selección de plantilla
-# -------------------
 plantilla = st.sidebar.selectbox(
     "Elige una plantilla de landing",
     ["Clásica", "Moderna", "Minimalista"]
 )
 
 # -------------------
-# Función para ajustar color de texto según fondo
+# FUNCIONES DE COLOR
 # -------------------
 def texto_color(bg_hex):
     bg_hex = bg_hex.lstrip('#')
@@ -39,21 +76,10 @@ def texto_color(bg_hex):
     return "#000" if luminosidad > 186 else "#fff"
 
 color_texto = texto_color(color_fondo)
-
-# -------------------
-# Ajuste de color para productos y comentarios
-# -------------------
-def texto_contraste(bg_hex):
-    bg_hex = bg_hex.lstrip('#')
-    r, g, b = int(bg_hex[0:2],16), int(bg_hex[2:4],16), int(bg_hex[4:6],16)
-    luminosidad = 0.299*r + 0.587*g + 0.114*b
-    return "#111" if luminosidad > 186 else "#fff"
-
-color_texto_productos = texto_contraste(color_fondo)
 color_texto_comentarios = st.sidebar.color_picker("Color del texto de los comentarios", "#333333")
 
 # -------------------
-# Carpeta de imágenes
+# IMÁGENES
 # -------------------
 if not os.path.exists("images"):
     os.mkdir("images")
@@ -95,7 +121,7 @@ texto_bajo_productos = st.text_area(
 )
 
 # -------------------
-# COMENTARIOS DE EJEMPLO
+# COMENTARIOS
 # -------------------
 comentarios_ejemplo = [
     "Excelente contenido y muy útil para mi PyME.",
@@ -104,11 +130,10 @@ comentarios_ejemplo = [
 ]
 
 # -------------------
-# PREVISUALIZACIÓN DIRECTA (sin formulario)
+# PREVISUALIZACIÓN
 # -------------------
 st.header("🔎 Vista previa directa")
 
-# Hero
 col1, col2 = st.columns([2, 1])
 with col1:
     if logo_empresa != "(Sin logo)":
@@ -121,7 +146,6 @@ with col2:
 
 st.divider()
 
-# Productos
 st.subheader("Nuestros Productos")
 if productos:
     filas = [productos[i:i+3] for i in range(0, len(productos), 3)]
@@ -136,42 +160,18 @@ else:
     st.info("Agrega productos en la sección superior para verlos aquí.")
 
 st.divider()
-
-# Texto adicional
 st.subheader("Información adicional")
-if texto_bajo_productos.strip():
-    for line in texto_bajo_productos.splitlines():
-        if line.strip():
-            st.write(line)
-
+for line in texto_bajo_productos.splitlines():
+    if line.strip():
+        st.write(line)
 st.divider()
 
-# Comentarios
 st.subheader("💬 Comentarios de usuarios")
 for c in comentarios_ejemplo:
     st.info(c)
 
 # -------------------
-# FORMULARIO CONTACTO (solo guardado, sin mostrar en vista previa)
-# -------------------
-st.write("---")
-st.header("📩 Formulario de contacto (guarda en contacto.csv)")
-with st.form("form_contacto"):
-    nombre_c = st.text_input("Nombre completo")
-    correo_c = st.text_input("Correo electrónico")
-    mensaje_c = st.text_area("Mensaje")
-    enviar = st.form_submit_button("Guardar contacto")
-    if enviar:
-        if nombre_c and correo_c and mensaje_c:
-            with open("contacto.csv", "a", newline="", encoding="utf-8") as f:
-                writer = csv.writer(f)
-                writer.writerow([nombre_c, correo_c, mensaje_c, datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
-            st.success("✅ Contacto guardado correctamente.")
-        else:
-            st.warning("Por favor completa todos los campos.")
-
-# -------------------
-# GENERAR HTML FINAL (incluye formulario)
+# CSS DE TARJETAS Y HERO
 # -------------------
 if plantilla == "Clásica":
     css_cards = """
@@ -193,6 +193,9 @@ else:
     .card h3, .card p {color: #111;}
     """
 
+# -------------------
+# HTML FINAL
+# -------------------
 html_productos = "".join([f"<div class='card'><img src='images/{p['img']}'><h3>{p['nombre']}</h3><p>{p['desc']}</p></div>" for p in productos])
 html_comentarios = "".join([f"<div class='comentario' style='color:{color_texto_comentarios}; background-color:#f9f9f9; padding:12px; border-radius:10px; margin:5px 0;'>{c}</div>" for c in comentarios_ejemplo])
 logo_html = f'<img src="images/{logo_empresa}" width="100">' if logo_empresa != "(Sin logo)" else ""
@@ -209,10 +212,26 @@ body {{font-family: Arial, sans-serif; background: {color_fondo}; color: {color_
 h1,h2,h3 {{color:{color_texto};}}
 p {{color:{color_texto}; font-size:16px;}}
 img {{border-radius:10px;}}
-.header {{display:flex; align-items:center; justify-content:space-between; padding:20px;}}
-.header .left {{flex:1; text-align:left; padding-right:20px;}}
-.header .right {{width:250px; flex-shrink:0; text-align:right;}}
-.header .right img {{width:100%; height:auto; object-fit:contain; display:block; border-radius:12px;}}
+
+.header {{
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 20px 40px;
+  gap: 40px;
+}}
+.header .left {{flex: 1; text-align: left; padding-right: 20px;}}
+.header .right {{flex: 0 0 480px; text-align: right;}}
+.header .right img {{
+  width: 100%;
+  max-width: 500px;
+  height: auto;
+  object-fit: contain;
+  display: block;
+  border-radius: 12px;
+  margin-top: 40px;
+}}
+
 .productos {{display:flex; flex-wrap:wrap; justify-content:center; gap:20px; margin:20px 0;}}
 {css_cards}
 .comentarios {{display:flex; flex-direction:column; align-items:center; gap:15px; margin:20px 0;}}
@@ -260,5 +279,13 @@ form input[type="submit"] {{width:150px; background-color:#ff6600; color:#fff; b
 </html>
 """
 
-st.download_button("⬇️ Descargar HTML", html_template.encode("utf-8"), "landing.html", "text/html")
-st.success(f"✅ Vista previa sin formulario y HTML final con formulario incluido.")
+# -------------------
+# DESCARGAR Y ACTUALIZAR SUPABASE
+# -------------------
+if st.download_button("⬇️ Descargar HTML", html_template.encode("utf-8"), "landing.html", "text/html"):
+    nuevo_total = user["landing"] + 1
+    supabase.table("Usuarios").update({
+        "landing": nuevo_total,
+        "ultimo_acceso": datetime.now().isoformat()
+    }).eq("email", email).execute()
+    st.success(f"✅ Landing generada correctamente. Ahora tienes {nuevo_total} landing(s) creadas.")
