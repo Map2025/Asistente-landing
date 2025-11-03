@@ -50,7 +50,6 @@ def texto_contraste(bg_hex):
     return "#111" if luminosidad > 186 else "#fff"
 
 color_texto_productos = texto_contraste(color_fondo)
-# 🎨 Nuevo: selector manual para color de texto de comentarios
 color_texto_comentarios = st.sidebar.color_picker("Color del texto de los comentarios", "#333333")
 
 # -------------------
@@ -105,50 +104,55 @@ comentarios_ejemplo = [
 ]
 
 # -------------------
-# PREVISUALIZACIÓN DIRECTA
+# PREVISUALIZACIÓN DIRECTA (sin formulario)
 # -------------------
 st.header("🔎 Vista previa directa")
-col1, col2 = st.columns([2, 1])
 
+# Hero
+col1, col2 = st.columns([2, 1])
 with col1:
     if logo_empresa != "(Sin logo)":
         st.image(os.path.join("images", logo_empresa), width=100)
-    st.markdown(f"<h1 style='color:{color_texto}; margin-bottom:10px'>{titulo}</h1>", unsafe_allow_html=True)
-    st.markdown(f"<p style='font-size:18px;color:{color_texto}'>{descripcion}</p>", unsafe_allow_html=True)
-    st.markdown(f"<a href='{url_app_web}' target='_blank' style='display:inline-block; padding:12px 25px; margin-top:15px; background-color:#ff6600; color:#fff; border-radius:6px; text-decoration:none; font-weight:bold;'>Ver App Web</a>", unsafe_allow_html=True)
-
+    st.subheader(titulo)
+    st.write(descripcion)
+    st.link_button("Ver App Web", url_app_web)
 with col2:
-    st.image(os.path.join("images", imagen_hero), width=220)
+    st.image(os.path.join("images", imagen_hero), use_container_width=True)
 
-st.write("---")
+st.divider()
 
-# Productos centrados con tamaño fijo
-st.markdown(f"<h2 style='text-align:center; color:{color_texto}'>Nuestros Productos</h2>", unsafe_allow_html=True)
-st.markdown("<div style='text-align:center'>", unsafe_allow_html=True)
-for p in productos:
-    st.image(os.path.join("images", p["img"]), width=180)
-    st.markdown(f"<strong style='color:{color_texto_productos}'>{p['nombre']}</strong>", unsafe_allow_html=True)
-    st.markdown(f"<p style='color:{color_texto_productos}'>{p['desc']}</p>", unsafe_allow_html=True)
-st.markdown("</div>", unsafe_allow_html=True)
+# Productos
+st.subheader("Nuestros Productos")
+if productos:
+    filas = [productos[i:i+3] for i in range(0, len(productos), 3)]
+    for fila in filas:
+        cols = st.columns(len(fila))
+        for i, p in enumerate(fila):
+            with cols[i]:
+                st.image(os.path.join("images", p["img"]), width=160)
+                st.caption(p["nombre"])
+                st.write(p["desc"])
+else:
+    st.info("Agrega productos en la sección superior para verlos aquí.")
 
-st.write("---")
+st.divider()
 
-# Texto adicional centrado
-st.markdown(f"<h3 style='text-align:center; color:{color_texto}'>Información adicional</h3>", unsafe_allow_html=True)
-for line in texto_bajo_productos.splitlines():
-    if line.strip():
-        st.markdown(f"<p style='text-align:center; color:{color_texto}'>{line}</p>", unsafe_allow_html=True)
+# Texto adicional
+st.subheader("Información adicional")
+if texto_bajo_productos.strip():
+    for line in texto_bajo_productos.splitlines():
+        if line.strip():
+            st.write(line)
 
-# Comentarios en Streamlit
+st.divider()
+
+# Comentarios
 st.subheader("💬 Comentarios de usuarios")
 for c in comentarios_ejemplo:
-    st.markdown(
-        f"<div style='background-color:#f9f9f9; padding:10px; margin:5px 0; border-radius:8px; color:{color_texto_comentarios}'>{c}</div>",
-        unsafe_allow_html=True
-    )
+    st.info(c)
 
 # -------------------
-# FORMULARIO CONTACTO STREAMLIT
+# FORMULARIO CONTACTO (solo guardado, sin mostrar en vista previa)
 # -------------------
 st.write("---")
 st.header("📩 Formulario de contacto (guarda en contacto.csv)")
@@ -167,7 +171,7 @@ with st.form("form_contacto"):
             st.warning("Por favor completa todos los campos.")
 
 # -------------------
-# GENERAR HTML FINAL
+# GENERAR HTML FINAL (incluye formulario)
 # -------------------
 if plantilla == "Clásica":
     css_cards = """
@@ -257,4 +261,4 @@ form input[type="submit"] {{width:150px; background-color:#ff6600; color:#fff; b
 """
 
 st.download_button("⬇️ Descargar HTML", html_template.encode("utf-8"), "landing.html", "text/html")
-st.success(f"✅ Landing generada con plantilla '{plantilla}' y productos con tamaño fijo.")
+st.success(f"✅ Vista previa sin formulario y HTML final con formulario incluido.")
