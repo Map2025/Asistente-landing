@@ -1,8 +1,9 @@
 import streamlit as st
 import os
-import csv
 from datetime import datetime
 from supabase import create_client, Client
+from openai import OpenAI
+import json
 
 # -------------------
 # CONFIGURACIÓN
@@ -35,7 +36,6 @@ if not email:
     st.warning("✉️ Ingresa tu correo en la barra lateral para comenzar.")
     st.stop()
 
-# Si el usuario no existe, lo crea automáticamente
 if not user:
     supabase.table("Usuarios").insert({
         "email": email,
@@ -44,7 +44,6 @@ if not user:
     }).execute()
     user = obtener_usuario(email)
 
-# Si ya tiene 5 landings, bloqueo
 if user["landing"] >= 5:
     st.error("🚫 Has alcanzado el límite máximo de 5 landings.")
     st.stop()
@@ -121,6 +120,28 @@ texto_bajo_productos = st.text_area(
 )
 
 # -------------------
+# FAQ GENERADAS POR IA
+# -------------------
+st.header("🤖 Preguntas Frecuentes generadas por IA")
+try:
+    client = OpenAI(api_key=st.secrets["openai"]["api_key"])
+    prompt = f"""
+    Genera tres preguntas y respuestas breves tipo FAQ en español sobre el siguiente tema:
+    Título: {titulo}
+    Descripción: {descripcion}
+    Devuelve una lista JSON con 'pregunta' y 'respuesta'.
+    """
+    faq_response = client.responses.create(model="gpt-4.1-mini", input=prompt)
+    faq_text = faq_response.output[0].content[0].text
+    faqs = json.loads(faq_text)
+except Exception:
+    faqs = [
+        {"pregunta": "¿Qué es la Biblioteca Virtual?", "respuesta": "Es una colección digital de recursos y herramientas creadas por inteligencia artificial."},
+        {"pregunta": "¿Cómo accedo a los contenidos?", "respuesta": "Podés ingresar desde cualquier dispositivo, sin necesidad de instalar nada."},
+        {"pregunta": "¿El contenido se actualiza automáticamente?", "respuesta": "Sí, la IA añade nuevos recursos y guías en función de las tendencias del mercado."}
+    ]
+
+# -------------------
 # COMENTARIOS
 # -------------------
 comentarios_ejemplo = [
@@ -140,12 +161,16 @@ with col1:
         st.image(os.path.join("images", logo_empresa), width=100)
     st.subheader(titulo)
     st.write(descripcion)
-    st.link_button("Ver App Web", url_app_web)
+    st.markdown(
+        f'<a href="{url_app_web}" target="_blank">'
+        f'<button style="background-color:#0078D4;color:white;border:none;'
+        f'padding:10px 18px;border-radius:6px;cursor:pointer;">Visitar App Web</button></a>',
+        unsafe_allow_html=True
+    )
 with col2:
     st.image(os.path.join("images", imagen_hero), use_container_width=True)
 
 st.divider()
-
 st.subheader("Nuestros Productos")
 if productos:
     filas = [productos[i:i+3] for i in range(0, len(productos), 3)]
@@ -153,52 +178,31 @@ if productos:
         cols = st.columns(len(fila))
         for i, p in enumerate(fila):
             with cols[i]:
-                st.image(os.path.join("images", p["img"]), width=160)
+                st.image(os.path.join("images", p["img"]), width=220)
                 st.caption(p["nombre"])
                 st.write(p["desc"])
 else:
     st.info("Agrega productos en la sección superior para verlos aquí.")
 
 st.divider()
-st.subheader("Información adicional")
-for line in texto_bajo_productos.splitlines():
-    if line.strip():
-        st.write(line)
-st.divider()
-
 st.subheader("💬 Comentarios de usuarios")
 for c in comentarios_ejemplo:
     st.info(c)
 
-# -------------------
-# CSS DE TARJETAS Y HERO
-# -------------------
-if plantilla == "Clásica":
-    css_cards = """
-    .card {background:#fff; border-radius:12px; box-shadow:0 4px 8px rgba(0,0,0,0.1); width:180px; padding:15px; text-align:center;}
-    .card img {width:100%; height:auto;}
-    .card h3, .card p {color: #111;}
-    """
-elif plantilla == "Moderna":
-    css_cards = """
-    .card {background:#fff; border-radius:12px; box-shadow:0 4px 12px rgba(0,0,0,0.15); width:180px; padding:15px; text-align:center; transition: transform 0.3s, box-shadow 0.3s;}
-    .card img {width:100%; height:auto;}
-    .card h3, .card p {color: #111;}
-    .card:hover {transform: translateY(-5px); box-shadow:0 8px 20px rgba(0,0,0,0.2);}
-    """
-else:
-    css_cards = """
-    .card {background:#fff; border-radius:8px; width:180px; padding:10px; text-align:center; border:1px solid #ddd;}
-    .card img {width:100%; height:auto;}
-    .card h3, .card p {color: #111;}
-    """
+st.divider()
+st.subheader("📚 Preguntas Frecuentes – Biblioteca Virtual")
+for f in faqs:
+    st.markdown(f"**{f['pregunta']}**\n\n{f['respuesta']}")
 
 # -------------------
-# HTML FINAL
+# HTML FINAL (TARJETAS ALINEADAS Y AJUSTADAS)
 # -------------------
-html_productos = "".join([f"<div class='card'><img src='images/{p['img']}'><h3>{p['nombre']}</h3><p>{p['desc']}</p></div>" for p in productos])
-html_comentarios = "".join([f"<div class='comentario' style='color:{color_texto_comentarios}; background-color:#f9f9f9; padding:12px; border-radius:10px; margin:5px 0;'>{c}</div>" for c in comentarios_ejemplo])
-logo_html = f'<img src="images/{logo_empresa}" width="100">' if logo_empresa != "(Sin logo)" else ""
+html_productos = "".join([
+    f"<div class='product-card'><img src='images/{p['img']}' alt='{p['nombre']}'><h3>{p['nombre']}</h3><p>{p['desc']}</p></div>"
+    for p in productos
+])
+html_comentarios = "".join([f"<div class='comment'><p>“{c}”</p></div>" for c in comentarios_ejemplo])
+html_faq = "".join([f"<div class='faq-item'><h4>{f['pregunta']}</h4><p>{f['respuesta']}</p></div>" for f in faqs])
 
 html_template = f"""
 <!DOCTYPE html>
@@ -208,73 +212,244 @@ html_template = f"""
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{empresa} - {titulo}</title>
 <style>
-body {{font-family: Arial, sans-serif; background: {color_fondo}; color: {color_texto}; margin:0; padding:0;}}
-h1,h2,h3 {{color:{color_texto};}}
-p {{color:{color_texto}; font-size:16px;}}
-img {{border-radius:10px;}}
-
-.header {{
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  padding: 20px 40px;
-  gap: 40px;
+body {{
+  font-family: 'Segoe UI', Roboto, Arial, sans-serif;
+  background: {color_fondo};
+  color: {color_texto};
+  margin: 0;
+  padding: 0;
+  line-height: 1.6;
 }}
-.header .left {{flex: 1; text-align: left; padding-right: 20px;}}
-.header .right {{flex: 0 0 480px; text-align: right;}}
-.header .right img {{
-  width: 100%;
+
+header {{
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  padding: 60px 8%;
+}}
+
+header .text-content {{
+  flex: 1;
+  min-width: 280px;
+}}
+
+header h1 {{
+  font-size: 2.4rem;
+  margin-bottom: 10px;
+}}
+
+header p {{
+  font-size: 1.1rem;
   max-width: 500px;
-  height: auto;
-  object-fit: contain;
-  display: block;
-  border-radius: 12px;
+  margin-bottom: 20px;
+}}
+
+.hero-img {{
+  flex: 1;
+  text-align: center;
+}}
+
+.hero-img img {{
+  width: 100%;
+  max-width: 400px;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+}}
+
+.btn-primary {{
+  background-color: #0078D4;
+  color: white;
+  padding: 12px 24px;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: 600;
+  display: inline-block;
+  transition: all 0.2s ease;
+}}
+
+.btn-primary:hover {{
+  background-color: #005fa3;
+}}
+
+.section {{
+  padding: 60px 8%;
+  text-align: center;
+}}
+
+.products {{
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 30px;
   margin-top: 40px;
 }}
 
-.productos {{display:flex; flex-wrap:wrap; justify-content:center; gap:20px; margin:20px 0;}}
-{css_cards}
-.comentarios {{display:flex; flex-direction:column; align-items:center; gap:15px; margin:20px 0;}}
-.btn {{display:inline-block; padding:12px 25px; margin-top:15px; background-color:#ff6600; color:#fff; border-radius:6px; text-decoration:none; font-weight:bold;}}
-form {{display:flex; flex-direction:column; align-items:center; gap:10px; margin:20px 0;}}
-form input, form textarea {{width:300px; padding:8px; border-radius:5px; border:1px solid #ccc;}}
-form input[type="submit"] {{width:150px; background-color:#ff6600; color:#fff; border:none; cursor:pointer; font-weight:bold;}}
+.product-card {{
+  background: {("#fff" if color_texto == "#000" else "#222")};
+  border: 1px solid rgba(0,0,0,0.08);
+  border-radius: 14px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+  width: 280px;
+  min-height: 380px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 20px;
+  text-align: center;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}}
+
+.product-card:hover {{
+  transform: translateY(-4px);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+}}
+
+.product-card img {{
+  width: 100%;
+  max-width: 260px;
+  max-height: 200px;
+  height: auto;
+  object-fit: contain;
+  border-radius: 10px;
+  margin-bottom: 12px;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}}
+
+.product-card h3 {{
+  color: {color_texto};
+  margin: 10px 0 6px 0;
+}}
+
+.product-card p {{
+  color: {color_texto};
+  font-size: 15px;
+  line-height: 1.5;
+}}
+
+.comments {{
+  max-width: 800px;
+  margin: 0 auto;
+}}
+
+.comment {{
+  background: #ffffffd9;
+  border-radius: 12px;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.1);
+  margin: 15px 0;
+  padding: 20px;
+  font-style: italic;
+  color: {color_texto_comentarios};
+}}
+
+form {{
+  max-width: 420px;
+  margin: 40px auto;
+  background: #fff;
+  padding: 25px;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}}
+
+form input, form textarea {{
+  width: 100%;
+  margin-bottom: 10px;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+}}
+
+form input[type="submit"] {{
+  background-color: #0078D4;
+  color: #fff;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: background 0.2s;
+}}
+
+form input[type="submit"]:hover {{
+  background-color: #005fa3;
+}}
+
+.faq {{
+  max-width: 800px;
+  margin: 40px auto;
+  background: {("#fff" if color_texto == "#000" else "#222")};
+  padding: 30px;
+  border-radius: 14px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+  text-align: left;
+}}
+
+.faq-item h4 {{
+  color: #0078D4;
+  margin-bottom: 5px;
+  font-weight: 600;
+}}
+
+.faq-item p {{
+  color: {color_texto};
+  margin: 0 0 15px 0;
+  line-height: 1.6;
+}}
+
+footer {{
+  background: #f1f1f1;
+  padding: 20px;
+  text-align: center;
+  color: #555;
+  font-size: 0.9rem;
+  margin-top: 60px;
+}}
 </style>
 </head>
 <body>
-<div class="header">
-  <div class="left">
-    {logo_html}
+
+<header>
+  <div class="text-content">
+    {f'<img src="images/{logo_empresa}" alt="Logo" style="width:120px;margin-bottom:20px;">' if logo_empresa != "(Sin logo)" else ""}
     <h1>{titulo}</h1>
     <p>{descripcion}</p>
-    <a href="{url_app_web}" target="_blank" class="btn">Ver App Web</a>
+    <a href="{url_app_web}" target="_blank" class="btn-primary">Visitar App Web</a>
   </div>
-  <div class="right">
+  <div class="hero-img">
     <img src="images/{imagen_hero}" alt="Hero">
   </div>
-</div>
+</header>
 
-<h2 style="text-align:center;">Nuestros Productos</h2>
-<div class="productos">{html_productos}</div>
+<section class="section">
+  <h2>Nuestros Productos</h2>
+  <div class="products">{html_productos}</div>
+</section>
 
-<h3 style="text-align:center;">Información adicional</h3>
-<p style="text-align:center;">{texto_bajo_productos.replace(chr(10), '<br>')}</p>
+<section class="section">
+  <h3>💬 Comentarios de usuarios</h3>
+  <div class="comments">{html_comentarios}</div>
+</section>
 
-<h3 style="text-align:center;">Comentarios de usuarios</h3>
-<div class="comentarios">{html_comentarios}</div>
+<section class="section">
+  <h3>Formulario de contacto</h3>
+  <form action="mailto:{correo_destino}" method="post" enctype="text/plain">
+    <input type="text" name="Nombre" placeholder="Nombre completo" required>
+    <input type="email" name="Correo" placeholder="Correo electrónico" required>
+    <textarea name="Mensaje" placeholder="Mensaje" rows="4" required></textarea>
+    <input type="submit" value="Enviar">
+  </form>
+</section>
 
-<h3 style="text-align:center;">Formulario de contacto</h3>
-<form action="mailto:{correo_destino}" method="post" enctype="text/plain">
-<input type="text" name="Nombre" placeholder="Nombre completo" required>
-<input type="email" name="Correo" placeholder="Correo electrónico" required>
-<textarea name="Mensaje" placeholder="Mensaje" rows="4" required></textarea>
-<input type="submit" value="Enviar">
-</form>
+<section class="section">
+  <h3>📚 Preguntas Frecuentes – Biblioteca Virtual</h3>
+  <div class="faq">{html_faq}</div>
+</section>
 
-<p style="text-align:center;"><a href="{url_app_web}" target="_blank" class="btn">Ver App Web</a></p>
-<footer style="text-align:center; padding:20px; margin-top:40px; background-color:#f1f1f1; color:#555; font-size:14px;">
+<footer>
   © {datetime.now().year} {empresa} | Todos los derechos reservados.
 </footer>
+
 </body>
 </html>
 """
