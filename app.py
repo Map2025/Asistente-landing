@@ -23,13 +23,22 @@ def obtener_usuario(email):
     resp = supabase.table("Usuarios").select("*").eq("email", email).execute()
     return resp.data[0] if resp.data else None
 
-user = obtener_usuario(email)
+# 🟢 Corrección aplicada: validar email antes de llamar a Supabase
 if not email:
     st.warning("✉️ Ingresa tu correo en la barra lateral para comenzar.")
     st.stop()
+
+# Ahora sí: primera llamada a Supabase
+user = obtener_usuario(email)
+
 if not user:
-    supabase.table("Usuarios").insert({"email": email, "landing": 0, "ultimo_acceso": datetime.now().isoformat()}).execute()
+    supabase.table("Usuarios").insert({
+        "email": email,
+        "landing": 0,
+        "ultimo_acceso": datetime.now().isoformat()
+    }).execute()
     user = obtener_usuario(email)
+
 if user["landing"] >= 5:
     st.error("🚫 Has alcanzado el límite máximo de 5 landings.")
     st.stop()
