@@ -15,11 +15,6 @@ SUPABASE_URL = ( st.secrets["supabase"]["SUPABASE_URL"]
 .replace(".co.ar", "")
 )   
 SUPABASE_KEY = st.secrets["supabase"]["SUPABASE_KEY"]
-raw_url = st.secrets["supabase"]["SUPABASE_URL"]
-st.write("RAW URL repr:", repr(raw_url))
-
-SUPABASE_URL = raw_url.strip()
-st.write("FINAL URL repr:", repr(SUPABASE_URL))
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
