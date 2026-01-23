@@ -9,13 +9,8 @@ st.set_page_config(page_title="Generador de Landing Page", layout="wide")
 st.title("🌐 Generador de Landing Page Profesional")
 
 # --- Supabase ---
-SUPABASE_URL = ( st.secrets["supabase"]["SUPABASE_URL"]
-.strip()
-.replace(".com.ar", "")
-.replace(".co.ar", "")
-)   
+SUPABASE_URL = st.secrets["supabase"]["SUPABASE_URL"]
 SUPABASE_KEY = st.secrets["supabase"]["SUPABASE_KEY"]
-
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # --- Login ---
